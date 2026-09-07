@@ -294,7 +294,7 @@ export default function BatchWorkspace() {
           <div className="submit-row">
             <div className="submit-note">
               <span className="mini-lock">✓</span>
-              Files stay on your local Flask server in this prototype.
+              Files are processed temporarily by the Flask backend for this prototype.
             </div>
             <button
               className="primary-button large"
