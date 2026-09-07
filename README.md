@@ -1,87 +1,175 @@
-# BatchFlow
+# BatchFlow Frontend
 
-A proof-of-work exploring reliable batch image processing and
-partial failure recovery.
+A focused proof-of-work for **reliable batch image processing with partial failure recovery**.
 
-🌐 Live Demo: https://batchflow-frontend-steel.vercel.app/
-
-## The problem
-
-In multi-file processing workflows, one corrupted or failed file
-shouldn't force users to restart the entire batch.
-
-BatchFlow processes files independently, preserves successful
-outputs, and retries only failed work.
-
-## Demo
-
-1. Upload multiple images
-2. Enable demo failure mode
-3. One file intentionally fails
-4. Other files continue processing
-5. Retry only the failed file
-6. Download successful outputs
-
-## Stack
-
-- Next.js 16.3.4
-- React 19.2.7
-- TypeScript
-- Plain CSS
-- Flask REST API backend
-
-No UI/component library is required.
+**Live demo:** https://batchflow-frontend-steel.vercel.app/  
+**Frontend repository:** https://github.com/ajayyadavexpo/batchflow-frontend  
+**Backend repository:** https://github.com/ajayyadavexpo/batchflow-backend
 
 ---
 
-## Run it
+## Why I built this
 
-### 1. Start the Flask backend
+In a multi-file processing workflow, one failed file should not force the user to restart the entire batch.
 
-Use the backend project created for this proof-of-work.
+BatchFlow explores a small but important reliability problem:
 
-By default it should run at:
+> **Preserve successful work, isolate failures, and retry only what failed.**
+
+The goal was not to build a large image-editing product. The goal was to build a small, production-style proof-of-work that demonstrates product thinking, frontend/backend integration, failure handling, and user-visible recovery.
+
+---
+
+## What the frontend does
+
+- Upload multiple JPG, PNG, and WEBP images
+- Create a batch through the Flask API
+- Poll live batch status
+- Show per-file state:
+  - `pending`
+  - `processing`
+  - `completed`
+  - `failed`
+- Show overall batch progress
+- Show input/output file sizes
+- Show compression savings
+- Retry one failed file
+- Retry all failed files
+- Preserve successful outputs during retries
+- Download successful outputs as a ZIP
+- Demonstrate a deterministic fail-once retry flow
+
+---
+
+## Demo flow
+
+The easiest way to see the core idea:
+
+1. Upload 4-6 images
+2. Enable **Demo retry flow**
+3. Start processing
+4. One image intentionally fails once
+5. The remaining images continue processing normally
+6. Retry the failed image
+7. The retry succeeds on **Attempt 2**
+8. Download the successful outputs
+
+This demonstrates that the batch is resilient to partial failure.
+
+---
+
+## Architecture
+
+```mermaid
+flowchart TD
+    U[User] --> N[Next.js Frontend]
+    N -->|REST API| F[Flask Backend]
+    F --> Q[Bounded Worker Pool]
+    Q --> P[Pillow Image Processing]
+
+    P --> S[Completed]
+    P --> X[Failed]
+
+    X --> R[Retry Endpoint]
+    R --> Q
+
+    S --> Z[Download Successful Outputs]
+```
+
+---
+
+## Frontend stack
+
+- **Next.js**
+- **React**
+- **TypeScript**
+- **CSS**
+- Browser `fetch`
+- Vercel
+
+The UI intentionally stays dependency-light so the product logic is easy to understand and explain.
+
+---
+
+## Backend API used
+
+The frontend talks to the Flask backend through:
 
 ```text
-http://127.0.0.1:5000
+POST   /api/batches
+GET    /api/batches/:batchId
+POST   /api/batches/:batchId/retry
+POST   /api/files/:fileId/retry
+GET    /api/batches/:batchId/download
 ```
 
-Check it with:
+---
 
-```bash
-curl http://127.0.0.1:5000/health
+## Batch lifecycle
+
+```text
+pending
+   ↓
+processing
+   ↓
+┌───────────────────┐
+│                   │
+completed     partial_failure
+                     │
+                     ↓
+                  retry
+                     │
+                     ↓
+                processing
 ```
 
-### 2. Install frontend packages
+A file follows:
+
+```text
+pending → processing → completed
+                     ↘ failed → retry → processing
+```
+
+Successful files are not reprocessed when failed files are retried.
+
+---
+
+## Local setup
+
+### 1. Clone the frontend
 
 ```bash
-cd pixoate_batch_frontend
+git clone https://github.com/ajayyadavexpo/batchflow-frontend.git
+cd batchflow-frontend
+```
+
+### 2. Install dependencies
+
+```bash
 npm install
 ```
 
-### 3. Configure the Flask URL
+### 3. Create the environment file
 
-Copy the example environment file:
-
-macOS / Linux:
-
-```bash
-cp .env.example .env.local
-```
-
-Windows PowerShell:
-
-```powershell
-Copy-Item .env.example .env.local
-```
-
-Default value:
+Create `.env.local`:
 
 ```env
 NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:5000
 ```
 
-### 4. Start Next.js
+### 4. Start the Flask backend
+
+Backend repository:
+
+https://github.com/ajayyadavexpo/batchflow-backend
+
+Make sure it is running on:
+
+```text
+http://127.0.0.1:5000
+```
+
+### 5. Start the frontend
 
 ```bash
 npm run dev
@@ -95,125 +183,100 @@ http://localhost:3000
 
 ---
 
-# Best demo flow
+## Production deployment
 
-1. Select 4–6 valid JPG/PNG/WEBP files.
-2. Enable **Demo retry flow**.
-3. Click **Process images**.
-4. Watch the per-file status update.
-5. The first image intentionally fails once.
-6. The other images should complete normally.
-7. Click **Retry** on that file or **Retry all failed**.
-8. The failed image should now succeed.
-9. Click **Download successful**.
+The frontend is deployed on **Vercel**:
 
-That visually demonstrates:
+https://batchflow-frontend-steel.vercel.app/
 
-- partial failure isolation,
-- bounded backend processing,
-- per-file observability,
-- retry behavior,
-- preservation of successful work.
-
----
-
-# Frontend → backend API contract
-
-The UI calls:
-
-```text
-POST /api/batches
-GET  /api/batches/:batchId
-POST /api/batches/:batchId/retry
-POST /api/files/:fileId/retry
-GET  /api/batches/:batchId/download
-```
-
-## Upload request
-
-The frontend sends `multipart/form-data`:
-
-```text
-files=<image>
-files=<image>
-simulateFailure=true   # optional
-```
-
-## Polling
-
-While the batch is `pending` or `processing`, the UI polls approximately every
-900 ms.
-
-Polling stops once the batch becomes:
-
-```text
-completed
-partial_failure
-failed
-```
-
-Retrying a failed item moves the batch back into a running state and polling
-starts again.
-
----
-
-# Important backend CORS setting
-
-The backend already allows these origins by default:
-
-```text
-http://localhost:3000
-http://127.0.0.1:3000
-```
-
-If you deploy the frontend elsewhere, set the backend environment variable:
+Production environment variable:
 
 ```env
-CORS_ORIGINS=https://your-frontend-domain.com
+NEXT_PUBLIC_API_BASE_URL=https://batchflow-api-ihb4.onrender.com
 ```
 
 ---
 
-# Files
+## Important UX decisions
 
-```text
-pixoate_batch_frontend/
-├── app/
-│   ├── globals.css
-│   ├── layout.tsx
-│   └── page.tsx
-├── components/
-│   ├── BatchFileRow.tsx
-│   ├── BatchResults.tsx
-│   ├── BatchWorkspace.tsx
-│   ├── UploadDropzone.tsx
-│   └── icons.tsx
-├── lib/
-│   ├── api.ts
-│   ├── format.ts
-│   └── types.ts
-├── .env.example
-├── .gitignore
-├── next-env.d.ts
-├── next.config.ts
-├── package.json
-├── tsconfig.json
-└── README.md
-```
+### Preserve successful work
+
+If 1 out of 10 files fails, the other 9 remain completed.
+
+The user does not have to restart the entire batch.
+
+### Make failure visible
+
+Every file has its own status and error state.
+
+This makes the system easier to understand and recover from.
+
+### Retry only failed work
+
+The UI supports:
+
+- retry one failed file
+- retry all failed files
+
+Completed files are intentionally left untouched.
+
+### Keep the workflow simple
+
+The project focuses on one problem:
+
+> reliable multi-file processing
+
+It avoids unrelated features such as authentication, billing, AI editing, or large dashboard functionality.
 
 ---
 
-# Production evolution
+## What I would improve for production
 
-For a real production deployment, I would next consider:
+For a larger production system, I would consider:
 
-- signed/direct-to-object-storage uploads for large files,
-- SSE or WebSocket updates instead of polling,
-- authentication and per-user batch ownership,
-- backend pagination for very large batches,
-- accessible file previews,
-- resumable uploads,
-- retention/cleanup policies,
-- analytics around failure causes and retry success rate.
+- Server-Sent Events or WebSockets instead of polling
+- Authentication and per-user batch ownership
+- Direct-to-object-storage uploads
+- Signed download URLs
+- Persistent object storage
+- Batch pagination
+- Resumable uploads
+- Accessibility improvements
+- Automatic retention/cleanup policies
+- Analytics around failure causes and retry success rates
 
-Those are intentionally not included in this small proof-of-work.
+These were intentionally left out of the proof-of-work to keep the scope focused.
+
+---
+
+## What this project demonstrates
+
+This project is intentionally small, but it exercises several full-stack concerns:
+
+- product-oriented problem selection
+- API integration
+- asynchronous state handling
+- failure recovery
+- polling
+- status modelling
+- file upload UX
+- download flows
+- error states
+- retry behaviour
+- deployment across separate frontend/backend services
+
+---
+
+## Related repository
+
+Backend:
+
+https://github.com/ajayyadavexpo/batchflow-backend
+
+---
+
+## Author
+
+**Ajay Yadav**
+
+Built as a focused proof-of-work around reliable batch file-processing workflows.
