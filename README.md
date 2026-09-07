@@ -1,10 +1,26 @@
-# BatchFlow Frontend
+# BatchFlow
 
-A polished Next.js frontend for the Flask batch image processing proof-of-work.
+A proof-of-work exploring reliable batch image processing and
+partial failure recovery.
 
-It demonstrates the product idea:
+🌐 Live Demo: https://batchflow-frontend-steel.vercel.app/
 
-> One failed image should not invalidate an otherwise successful batch.
+## The problem
+
+In multi-file processing workflows, one corrupted or failed file
+shouldn't force users to restart the entire batch.
+
+BatchFlow processes files independently, preserves successful
+outputs, and retries only failed work.
+
+## Demo
+
+1. Upload multiple images
+2. Enable demo failure mode
+3. One file intentionally fails
+4. Other files continue processing
+5. Retry only the failed file
+6. Download successful outputs
 
 ## Stack
 
